@@ -3,6 +3,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 import pandas as pd
 import time
+from .Notation import notation
+
 
 def scrape_casablanca_bourse_js_click():
     """
@@ -203,6 +205,8 @@ def final_data(data):
     # print(f"\n💾 Data saved to: {output_file}")
     
     return df
+
+
 
 
 
