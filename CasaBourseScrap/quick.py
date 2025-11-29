@@ -19,9 +19,9 @@ def scrape_casablanca_bourse_js_click():
     
     # no chrome window
     chrome_options.add_argument("--disable-gpu")  # Often needed for headless
-    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-software-rasterizer")
+    chrome_options.add_argument("--remote-debugging-port=9222")  # Optional: for headless debugging
 
     # Initialize the driver
     driver = webdriver.Chrome(options=chrome_options)
