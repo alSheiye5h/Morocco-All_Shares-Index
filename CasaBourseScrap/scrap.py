@@ -242,19 +242,6 @@ def loadata_selenium(name, start=None, end=None):
 def loadmany(*args, start=None, end=None, feature="value", decode="utf-8", method="auto"):
     """
     Load the data of many equities  
-    Inputs: 
-            Input   | Type                             | Description
-            =================================================================================
-             *args  |strings                           | You must respect the notation. To see the notation see BVCscrap.notation
-             start  |string "YYYY-MM-DD"               | starting date Must respect the notation
-             end    |string "YYYY-MM-DD"               | Must respect the notation
-             feature|string                            | Variable : value, min, max, variation or volume (lowercase)
-             decode |string                            | type of decoder. default value is utf-8. If it is not working use utf-8-sig
-             method |string                            | "auto", "cloudscraper", or "selenium"
-    Outputs:
-            Output | Type                                 | Description
-           ================================================================================= 
-                   | pandas.DataFrame (len(args) columns) | close prices of selected equities
     """
     if len(args) == 0:
         raise ValueError("No stocks or indices provided")
@@ -266,63 +253,131 @@ def loadmany(*args, start=None, end=None, feature="value", decode="utf-8", metho
         stocks = list(args)
     
     print(f"📊 Loading data for {len(stocks)} securities: {stocks}")
-    if start and end:
-        print(f"📅 Date range: {start} to {end}")
-    print(f"📈 Feature: {feature}")
     
-    data_dict = {}
-    failed_stocks = []
+    all_data_frames = []  # Store properly formatted DataFrames for each stock
     
     for stock in stocks:
         try:
             print(f"\n🔄 Loading {stock}...")
-            # FIX: Call loadata directly, not bvc.loadata
-            value_data = load_data(stock, start=start, end=end, decode=decode, method=method)
+            # Get data from load_data
+            raw_data = load_data(stock, start=start, end=end, decode=decode, method=method)
             
-            if value_data is not None and len(value_data) > 0:
-                # Check available columns (case-insensitive)
-                available_columns = value_data.columns.tolist()
-                print(f"   Available columns: {available_columns}")
+            if raw_data is not None and len(raw_data) > 0:
+                print(f"   Raw data type: {type(raw_data)}")
+                print(f"   Raw data shape: {raw_data.shape}")
                 
-                # Try to find the feature (case-insensitive)
-                matching_columns = [col for col in available_columns if col.lower() == feature.lower()]
+                # Convert to proper DataFrame format
+                formatted_data = _format_stock_data(raw_data, stock)
+                all_data_frames.append(formatted_data)
+                print(f"✅ {stock}: Success - {len(formatted_data)} records")
                 
-                if matching_columns:
-                    actual_feature = matching_columns[0]
-                    data_dict[stock] = value_data[actual_feature]
-                    print(f"✅ {stock}: Success - {len(value_data)} records (using '{actual_feature}' column)")
-                else:
-                    print(f"❌ {stock}: Feature '{feature}' not found. Available: {available_columns}")
-                    failed_stocks.append(stock)
             else:
                 print(f"❌ {stock}: No data returned")
-                failed_stocks.append(stock)
                 
         except Exception as e:
             print(f"❌ {stock}: Error - {e}")
-            failed_stocks.append(stock)
     
-    # Create the final DataFrame
-    if data_dict:
-        # Align all series by index (date)
-        data = pd.DataFrame(data_dict)
+    # Combine all DataFrames
+    if all_data_frames:
+        combined_data = pd.concat(all_data_frames, axis=0, ignore_index=True)
         
-        # Sort by index if it's datetime
-        if hasattr(data.index, 'sort_values'):
-            data = data.sort_index()
+        print(f"\n✅ Successfully loaded {len(all_data_frames)} securities")
+        print(f"📊 Final data shape: {combined_data.shape}")
+        print(f"📊 Columns: {combined_data.columns.tolist()}")
         
-        print(f"\n✅ Successfully loaded {len(data_dict)} out of {len(stocks)} securities")
-        print(f"📊 Final data shape: {data.shape}")
-        
-        if failed_stocks:
-            print(f"❌ Failed to load: {failed_stocks}")
-            
-        return data
+        return combined_data
     else:
-        print("❌ No data was successfully loaded")
+        print("❌ No data loaded")
         return pd.DataFrame()
 
-# 
+
+def _format_stock_data(raw_data, stock_name):
+    """
+    Convert raw data from load_data to consistent DataFrame format
+    """
+    stock_ticker = ticker_from_name(stock_name)
+    
+    # Case 1: Raw data is already a proper multi-column DataFrame
+    if isinstance(raw_data, pd.DataFrame) and len(raw_data.columns) > 1:
+        print(f"   {stock_name}: Multi-column DataFrame detected")
+        
+        # Ensure stock name and ticker columns exist
+        if 'stock' not in raw_data.columns:
+            raw_data['stock'] = stock_name
+        if 'ticker' not in raw_data.columns:
+            raw_data['ticker'] = stock_ticker
+            
+        return raw_data
+    
+    # Case 2: Single column DataFrame or Series
+    elif isinstance(raw_data, (pd.DataFrame, pd.Series)):
+        print(f"   {stock_name}: Single column data detected - creating proper structure")
+        
+        # Convert to DataFrame if it's a Series
+        if isinstance(raw_data, pd.Series):
+            temp_df = raw_data.to_frame()
+        else:
+            temp_df = raw_data.copy()
+        
+        # Get the single column name
+        if len(temp_df.columns) == 1:
+            single_col_name = temp_df.columns[0]
+        else:
+            single_col_name = 'value'
+        
+        # Create proper multi-column structure
+        formatted_data = pd.DataFrame({
+            'date': temp_df.index if hasattr(temp_df.index, 'strftime') else pd.date_range(start='2023-01-01', periods=len(temp_df)),
+            'value': temp_df.iloc[:, 0],
+            'min': temp_df.iloc[:, 0],  # Use same value as min/max if not available
+            'max': temp_df.iloc[:, 0],
+            'variation': 0.0,  # Default value
+            'volume': 0,       # Default value
+            'stock': stock_name,
+            'ticker': stock_ticker
+        })
+        
+        return formatted_data
+    
+    # Case 3: Other data types
+    else:
+        print(f"   {stock_name}: Unknown data type - creating default structure")
+        return pd.DataFrame({
+            'date': [pd.Timestamp.now()],
+            'value': [0], 'min': [0], 'max': [0], 
+            'variation': [0.0], 'volume': [0],
+            'stock': [stock_name],
+            'ticker': [stock_ticker]
+        })
+
+
+# SIMPLER VERSION - If you just want to see what load_data returns:
+def debug_loadmany(*args, start=None, end=None, decode='utf-8', method='auto'):
+    """
+    Debug version to see what load_data actually returns
+    """
+    stocks = list(args) if not (len(args) == 1 and isinstance(args[0], list)) else args[0]
+    
+    for stock in stocks:
+        print(f"\n🔍 DEBUGGING: {stock}")
+        print("=" * 50)
+        
+        raw_data = load_data(stock, start=start, end=end, decode=decode, method=method)
+        
+        if raw_data is None:
+            print("❌ load_data returned: None")
+            continue
+            
+        print(f"✅ Type: {type(raw_data)}")
+        print(f"✅ Shape: {raw_data.shape}")
+        print(f"✅ Columns: {getattr(raw_data, 'columns', 'No columns (Series)')}")
+        print(f"✅ Index: {raw_data.index}")
+        print(f"✅ Data:\n{raw_data}")
+        print("=" * 50)
+    
+    return None
+
+
 #    -------- helper ---------
 #
 
