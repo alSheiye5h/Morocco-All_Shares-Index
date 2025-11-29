@@ -156,7 +156,7 @@ def ticker_from_name(full_name):
     """
     # Common ticker mappings based on your data
     ticker_mapping = {
-        'ADDOH': 'ADH',
+        'ADDOHA': 'ADH',
         'AFMA': 'AFM', 
         'AFRIC INDUS': 'AFI',
         'AFRIQUIA GAZ': 'GAZ',
@@ -190,8 +190,8 @@ def ticker_from_name(full_name):
         'EQDOM': 'EQD',
         'FENIE BROSSETTE': 'FBR',
         'HIGHTECH PAYMENT SYSTEMS': 'HPS',
-        'IB MAROC.COM': 'IBC',
-        'IMMORENTE INVEST': 'IMO',
+        'IBMAROC': 'IBC',
+        'Immr Invest': 'IMO',
         'INVOLYS': 'INV',
         'JET CONTRACTORS': 'JET',
         'LABEL VIE': 'LBV',
@@ -203,8 +203,10 @@ def ticker_from_name(full_name):
         'MANAGEM': 'MNG',
         'MAROC LEASING': 'MLE',
         'MAROC TELECOM': 'IAM',
+        'MASI' : 'MASI',
         'MED PAPER': 'MDP',
         'MICRODATA': 'MIC',
+        'MSI20': 'MSI20',
         'MUTANDIS': 'MUT',
         'OULMES': 'OUL',
         'PROMOPHARM': 'PMP',
@@ -231,5 +233,10 @@ def ticker_from_name(full_name):
         'WAFA ASSUR': 'WAA',
         'ZELLIDJA': 'ZEL'
     }
+    ticker = ticker_mapping.get(full_name.upper())
+
+    if ticker is None :
+        if len(full_name) <= 7 and full_name.isalpha() and full_name.isupper() and full_name.upper() in ticker_mapping.values():
+          ticker = full_name
     
-    return ticker_mapping.get(full_name.upper())
+    return ticker
