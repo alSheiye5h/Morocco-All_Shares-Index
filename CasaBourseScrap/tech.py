@@ -387,3 +387,6 @@ def getAllIndex(soup):
         
     except Exception as e:
         return getAllIndex_fixed(soup)
+
+
+
