@@ -242,6 +242,10 @@ def loadata_selenium(name, start=None, end=None):
 def loadmany(*args, start=None, end=None, feature="value", decode="utf-8", method="auto"):
     """
     Load the data of many equities  
+    Returns:
+        tuple: (full_data, latest_prices)
+        - full_data: DataFrame with all historical data
+        - latest_prices: Series with latest price for each ticker (for merging)
     """
     if len(args) == 0:
         raise ValueError("No stocks or indices provided")
@@ -254,19 +258,17 @@ def loadmany(*args, start=None, end=None, feature="value", decode="utf-8", metho
     
     print(f"📊 Loading data for {len(stocks)} securities: {stocks}")
     
-    all_data_frames = []  # Store properly formatted DataFrames for each stock
+    all_data_frames = []
     
     for stock in stocks:
         try:
             print(f"\n🔄 Loading {stock}...")
-            # Get data from load_data
             raw_data = load_data(stock, start=start, end=end, decode=decode, method=method)
             
             if raw_data is not None and len(raw_data) > 0:
                 print(f"   Raw data type: {type(raw_data)}")
                 print(f"   Raw data shape: {raw_data.shape}")
                 
-                # Convert to proper DataFrame format
                 formatted_data = _format_stock_data(raw_data, stock)
                 all_data_frames.append(formatted_data)
                 print(f"✅ {stock}: Success - {len(formatted_data)} records")
@@ -281,14 +283,18 @@ def loadmany(*args, start=None, end=None, feature="value", decode="utf-8", metho
     if all_data_frames:
         combined_data = pd.concat(all_data_frames, axis=0, ignore_index=True)
         
-        print(f"\n✅ Successfully loaded {len(all_data_frames)} securities")
-        print(f"📊 Final data shape: {combined_data.shape}")
-        print(f"📊 Columns: {combined_data.columns.tolist()}")
+        # Extract latest prices for each ticker (for merging with stocks)
+        latest_prices = combined_data.sort_values('date').groupby('ticker')['value'].last()
         
-        return combined_data
+        print(f"\n✅ Successfully loaded {len(all_data_frames)} securities")
+        print(f"📊 Full data shape: {combined_data.shape}")
+        print(f"📊 Latest prices for {len(latest_prices)} tickers")
+        
+        return combined_data, latest_prices
     else:
+        print(all_data_frames)
         print("❌ No data loaded")
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.Series()
 
 
 def _format_stock_data(raw_data, stock_name):
@@ -303,6 +309,7 @@ def _format_stock_data(raw_data, stock_name):
         
         # Ensure stock name and ticker columns exist
         if 'stock' not in raw_data.columns:
+            raw_data = raw_data.copy()
             raw_data['stock'] = stock_name
         if 'ticker' not in raw_data.columns:
             raw_data['ticker'] = stock_ticker
@@ -329,10 +336,10 @@ def _format_stock_data(raw_data, stock_name):
         formatted_data = pd.DataFrame({
             'date': temp_df.index if hasattr(temp_df.index, 'strftime') else pd.date_range(start='2023-01-01', periods=len(temp_df)),
             'value': temp_df.iloc[:, 0],
-            'min': temp_df.iloc[:, 0],  # Use same value as min/max if not available
+            'min': temp_df.iloc[:, 0],
             'max': temp_df.iloc[:, 0],
-            'variation': 0.0,  # Default value
-            'volume': 0,       # Default value
+            'variation': 0.0,
+            'volume': 0,
             'stock': stock_name,
             'ticker': stock_ticker
         })
@@ -349,33 +356,6 @@ def _format_stock_data(raw_data, stock_name):
             'stock': [stock_name],
             'ticker': [stock_ticker]
         })
-
-
-# SIMPLER VERSION - If you just want to see what load_data returns:
-def debug_loadmany(*args, start=None, end=None, decode='utf-8', method='auto'):
-    """
-    Debug version to see what load_data actually returns
-    """
-    stocks = list(args) if not (len(args) == 1 and isinstance(args[0], list)) else args[0]
-    
-    for stock in stocks:
-        print(f"\n🔍 DEBUGGING: {stock}")
-        print("=" * 50)
-        
-        raw_data = load_data(stock, start=start, end=end, decode=decode, method=method)
-        
-        if raw_data is None:
-            print("❌ load_data returned: None")
-            continue
-            
-        print(f"✅ Type: {type(raw_data)}")
-        print(f"✅ Shape: {raw_data.shape}")
-        print(f"✅ Columns: {getattr(raw_data, 'columns', 'No columns (Series)')}")
-        print(f"✅ Index: {raw_data.index}")
-        print(f"✅ Data:\n{raw_data}")
-        print("=" * 50)
-    
-    return None
 
 
 #    -------- helper ---------
